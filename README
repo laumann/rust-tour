@@ -1,0 +1,34 @@
+Rust tour
+=========
+
+This is my Rust tour, written because I think the chosen approach in the various
+Rust documentation efforts is much too convoluted and overwhelming for
+new-comers (even experienced programmers).
+
+I take a lesson from the "Go tour":
+
+ - The introduction is one big interactive slide show
+ - It _is_ sectioned, but not visibly (only major section headers)
+ - Only the necessary bits are introduced at a time, convenience can come later.
+
+
+
+hello.rs
+--------
+For example, why does the introductory piece of Rust code contain macros? Given
+they are somewhat different from C macros and all require the st*p*d !-symbol,
+they add more complexity to the beginner than necesary. Compare
+
+use std::io;
+fn main() {
+	io::println("Hello, World");
+}
+
+with
+
+fn main() {
+	println!("Hello, World");
+}
+
+EVERYONE has heard of a module system, but NOT everyone has heard of the
+!-macros. Save them for later.
