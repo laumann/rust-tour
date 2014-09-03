@@ -39,10 +39,7 @@ fn main() {
 
     for _ in range(0, nproc) {
         let (tx_next, rx_next) = channel();
-        let mv = rx;
-        spawn(proc() {
-            whisper(mv, tx_next);
-        });
+        spawn(proc() whisper(rx, tx_next));
         rx = rx_next;
     }
 
