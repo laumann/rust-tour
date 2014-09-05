@@ -1,5 +1,7 @@
+#![feature(macro_rules)]
+
 extern crate getopts;
-use getopts::{optopt,optflag,getopts,usage,OptGroup,Matches};
+use getopts::{optopt,optflag,getopts,usage,OptGroup};
 use std::os;
 
 use std::rand;
@@ -169,6 +171,26 @@ fn main() {
     });
 }
 
+/*
+ * Macro for extracting a uint option, and if not specified use a given default
+ */
+macro_rules! getopt_uint(
+    ($prog:ident, $o:ident, $m:ident, $arg:expr, $def:ident) => (
+        if $m.opt_present($arg) {
+            match std::uint::parse_bytes($m.opt_str($arg).unwrap().as_bytes(), 10) {
+                None => {
+                    println!("error: argument for '-{}' must be positive numeric.", $arg);
+                    print_opts($prog.as_slice(), $o);
+                    return None
+                },
+                Some(u) => u
+            }
+        } else {
+            $def
+        }
+    )
+)
+
 fn handle_args() -> Option<(uint, uint, bool)> {
     let args = os::args();
     let prog = args[0].clone();
@@ -179,7 +201,7 @@ fn handle_args() -> Option<(uint, uint, bool)> {
         optflag("h", "help", "Print this help message and exit.")
     ];
 
-    let cargs = match getopts(os::args().tail(), opts) {
+    let matches = match getopts(os::args().tail(), opts) {
         Ok(m) => m,
         Err(e) => {
             print!("{}\n\n", e.to_string());
@@ -187,43 +209,15 @@ fn handle_args() -> Option<(uint, uint, bool)> {
             return None
         }
     };
-    if cargs.opt_present("h") {
+    if matches.opt_present("h") {
         print_opts(prog.as_slice(), opts);
         return None
     }
 
-    let nrequesters = match get_uint_opt(&cargs, "s", DEFAULT_REQUESTERS) {
-        Some(u) => u,
-        None    => {
-            print_opts(prog.as_slice(), opts);
-            return None
-        }
-    };
+    let nrequesters = getopt_uint!(prog, opts, matches, "s", DEFAULT_REQUESTERS);
+    let nworkers = getopt_uint!(prog, opts, matches, "w", DEFAULT_WORKERS);
 
-    let nworkers = match get_uint_opt(&cargs, "w", DEFAULT_WORKERS) {
-        Some(u) => u,
-        None    => {
-            print_opts(prog.as_slice(), opts);
-            return None
-        }
-    };
-
-
-    Some((nrequesters, nworkers, cargs.opt_present("r")))
-}
-
-fn get_uint_opt(matches: &Matches, arg: &str, def: uint) -> Option<uint> {
-    if matches.opt_present(arg) {
-        match std::uint::parse_bytes(matches.opt_str(arg).unwrap().as_bytes(), 10) {
-            None => {
-                println!("error: argument for '{}' must be positive numeric.", arg);
-                None
-            },
-            s => s
-        }
-    } else {
-        Some(def)
-    }
+    Some((nrequesters, nworkers, matches.opt_present("r")))
 }
 
 fn print_opts(prog: &str, opts: &[OptGroup]) {
