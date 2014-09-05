@@ -1,14 +1,18 @@
+extern crate getopts;
+use getopts::{optopt,optflag,getopts,usage,OptGroup,Matches};
+use std::os;
+
 use std::rand;
 use std::rand::distributions::{IndependentSample,Range};
 use std::io::timer::sleep;
 
 use std::time::Duration;
 
-static nrequesters: uint = 10;
-static nworkers: uint = 10;
+static DEFAULT_REQUESTERS: uint = 10;
+static DEFAULT_WORKERS: uint = 10;
 
 struct Request {
-    work: uint,        // The worker function to execute
+    work: uint // The worker function to execute
 }
 
 fn requester(q: Sender<Request>) {
@@ -46,6 +50,30 @@ fn dispatch(q: Receiver<Request>, mut workers: Vec<Worker>, done: Receiver<uint>
             }
         }
         workers.sort();
+        print(&workers);
+    }
+}
+
+/// A round-robin dispatcher
+/// 
+/// Relies on the fact that the returned 'id' is also the position of the worker
+/// in the worker list.
+fn dispatch_rr(q: Receiver<Request>, mut workers: Vec<Worker>, done: Receiver<uint>) {
+    let mut i = 0u;
+    let nw = workers.len();
+    loop {
+        select! {
+            req = q.recv() => {
+                let w = workers.get_mut(i);
+                w.requests.send(req);
+                w.pending += 1;
+                i = (i + 1) % nw;
+            },
+            id = done.recv() => {
+                let w = workers.get_mut(id);
+                w.pending -= 1;
+            }
+        }
         print(&workers);
     }
 }
@@ -107,6 +135,11 @@ fn worker(id: uint, requests: Receiver<Request>, done: Sender<uint>) {
 ///
 ///
 fn main() {
+    let (nrequesters, nworkers, rr) = match handle_args() {
+        Some(c) => c,
+        None    => return
+    };
+
     let (tx, rx) = channel();
 
     for _ in range(0, nrequesters) {
@@ -128,5 +161,71 @@ fn main() {
     }
 
     // start the dispatcher
-    spawn(proc() dispatch(rx, workers, rx_done));
+    spawn(proc() if rr {
+        println!("Using round-robin dispatcher");
+        dispatch_rr(rx, workers, rx_done)
+    } else {
+        dispatch(rx, workers, rx_done)
+    });
+}
+
+fn handle_args() -> Option<(uint, uint, bool)> {
+    let args = os::args();
+    let prog = args[0].clone();
+    let opts = [
+        optopt("s", "requesters", "Number of requesters to spawn.", "<uint>"),
+        optopt("w", "workers", "Number of workers to spawn.", "<uint>"),
+        optflag("r", "round-robin", "Use the round-robin dispatcher (default false)."),
+        optflag("h", "help", "Print this help message and exit.")
+    ];
+
+    let cargs = match getopts(os::args().tail(), opts) {
+        Ok(m) => m,
+        Err(e) => {
+            print!("{}\n\n", e.to_string());
+            print_opts(prog.as_slice(), opts);
+            return None
+        }
+    };
+    if cargs.opt_present("h") {
+        print_opts(prog.as_slice(), opts);
+        return None
+    }
+
+    let nrequesters = match get_uint_opt(&cargs, "s", DEFAULT_REQUESTERS) {
+        Some(u) => u,
+        None    => {
+            print_opts(prog.as_slice(), opts);
+            return None
+        }
+    };
+
+    let nworkers = match get_uint_opt(&cargs, "w", DEFAULT_WORKERS) {
+        Some(u) => u,
+        None    => {
+            print_opts(prog.as_slice(), opts);
+            return None
+        }
+    };
+
+
+    Some((nrequesters, nworkers, cargs.opt_present("r")))
+}
+
+fn get_uint_opt(matches: &Matches, arg: &str, def: uint) -> Option<uint> {
+    if matches.opt_present(arg) {
+        match std::uint::parse_bytes(matches.opt_str(arg).unwrap().as_bytes(), 10) {
+            None => {
+                println!("error: argument for '{}' must be positive numeric.", arg);
+                None
+            },
+            s => s
+        }
+    } else {
+        Some(def)
+    }
+}
+
+fn print_opts(prog: &str, opts: &[OptGroup]) {
+    print!("usage: {} [options]{}", prog, usage("", opts))
 }
