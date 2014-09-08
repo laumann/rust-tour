@@ -50,9 +50,7 @@ fn main() {
 
     for _ in range(0, nproc) {
         let (tx_next, rx_next) = channel();
-        go! {
-            whisper(rx, tx_next)
-        };
+        go!{ whisper(rx, tx_next) };
         rx = rx_next;
     }
 
