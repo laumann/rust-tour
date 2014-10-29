@@ -14,7 +14,7 @@ static DEFAULT_REQUESTERS: uint = 10;
 static DEFAULT_WORKERS: uint = 10;
 
 struct Request {
-    work: uint // The worker function to execute
+    work: proc():Send -> uint // The worker function to execute
 }
 
 fn requester(q: Sender<Request>) {
@@ -24,7 +24,8 @@ fn requester(q: Sender<Request>) {
         let dur = range.ind_sample(&mut rng);
         sleep(Duration::milliseconds(dur as i64));
 
-        q.send(Request{work: dur});
+	let f = proc() { dur };
+        q.send(Request{work: f });
     }
 }
 
@@ -43,7 +44,7 @@ fn dispatch(q: Receiver<Request>, mut workers: Vec<Worker>, done: Receiver<uint>
                 w.pending += 1;
             },
             id = done.recv() => {
-                for w in workers.mut_iter() {
+                for w in workers.iter_mut() {
                     if w.id == id {
                         w.pending -= 1;
                         break;
@@ -127,7 +128,8 @@ fn worker(id: uint, requests: Receiver<Request>, done: Sender<uint>) {
         let req = requests.recv();
         
         // Simulated work
-        sleep(Duration::milliseconds((req.work << 1) as i64));
+        let s = (req.work)();
+        sleep(Duration::milliseconds((s << 1) as i64));
         
         done.send(id);
     }
