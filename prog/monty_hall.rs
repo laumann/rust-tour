@@ -11,7 +11,6 @@ use std::rand;
 use std::rand::Rng;
 use std::rand::distributions::{IndependentSample,Range};
 
-use std::uint::parse_bytes;
 use getopts::{optopt,getopts,usage};
 
 struct SimulationResult {
@@ -34,7 +33,7 @@ fn simulate<R: Rng>(random_door: &Range<uint>, rng: &mut R) -> SimulationResult 
 
 fn game_host_open<R: Rng>(car: uint, choice: uint, rng: &mut R) -> uint {
     let choices = free_doors(&[car, choice]);
-    rand::sample(rng, choices.move_iter(), 1)[0]
+    rand::sample(rng, choices.into_iter(), 1)[0]
 }
 
 fn switch_door(choice: uint, open: uint) -> uint {
@@ -51,18 +50,18 @@ fn main() {
         optopt("n", "num-simulations", "Set the number of iterations to run", "<uint>"),
     ];
 
-    let matches = match getopts(os::args().tail(), opts) {
+    let matches = match getopts(os::args().tail(), &opts) {
         Ok(m)  => m,
-        Err(f) => fail!(f.to_string())
+        Err(f) => panic!(f.to_string())
     };
 
     let num_simulations = if matches.opt_present("n") {
         let n = matches.opt_str("n").unwrap();
-        match parse_bytes(n.as_bytes(), 10) {
+        match std::num::from_str_radix(n.as_slice(), 10) {
             Some(n) => n,
             None    => {
                 println!("error: Argument to -n: '{}'. Must be an unsigned integer", n);
-                println!("{}", usage("\nusage: ./monty_hall [options]", opts));
+                println!("{}", usage("\nusage: ./monty_hall [options]", &opts));
                 return;
             }
         }
