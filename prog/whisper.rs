@@ -83,7 +83,7 @@ fn handle_args() -> (uint, bool) {
         optflag("h", "help", "Print this help message")
     ];
 
-    let matches = match getopts(os::args().tail(), opts) {
+    let matches = match getopts(os::args().tail(), &opts) {
         Ok(m)  => m,
         Err(e) => {
             print!("{}", e.to_string());
@@ -98,7 +98,7 @@ fn handle_args() -> (uint, bool) {
     }
 
     if matches.opt_present("n") {
-        match std::uint::parse_bytes(matches.opt_str("n").unwrap().as_bytes(), 10) {
+        match std::num::from_str_radix(matches.opt_str("n").unwrap().as_slice(), 10) {
             Some(n) => (n, true),
             None    => {
                 println!("error: argument for -n must be positive numeric.");
