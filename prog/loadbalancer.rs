@@ -39,7 +39,7 @@ fn dispatch(q: Receiver<Request>, mut workers: Vec<Worker>, done: Receiver<uint>
     loop {
         select! {
             req = q.recv() => {
-                let w = workers.get_mut(0);
+                let w = workers.get_mut(0).unwrap();
                 w.requests.send(req);
                 w.pending += 1;
             },
@@ -67,13 +67,13 @@ fn dispatch_rr(q: Receiver<Request>, mut workers: Vec<Worker>, done: Receiver<ui
     loop {
         select! {
             req = q.recv() => {
-                let w = workers.get_mut(i);
+                let w = workers.get_mut(i).unwrap();
                 w.requests.send(req);
                 w.pending += 1;
                 i = (i + 1) % nw;
             },
             id = done.recv() => {
-                let w = workers.get_mut(id);
+                let w = workers.get_mut(id).unwrap();
                 w.pending -= 1;
             }
         }
@@ -179,10 +179,10 @@ fn main() {
 macro_rules! getopt_uint(
     ($prog:ident, $o:ident, $m:ident, $arg:expr, $def:ident) => (
         if $m.opt_present($arg) {
-            match std::uint::parse_bytes($m.opt_str($arg).unwrap().as_bytes(), 10) {
+            match from_str::<uint>($m.opt_str($arg).unwrap().as_slice()) {
                 None => {
                     println!("error: argument for '-{}' must be positive numeric.", $arg);
-                    print_opts($prog.as_slice(), $o);
+                    print_opts($prog.as_slice(), &$o);
                     return None
                 },
                 Some(u) => u
@@ -203,16 +203,16 @@ fn handle_args() -> Option<(uint, uint, bool)> {
         optflag("h", "help", "Print this help message and exit.")
     ];
 
-    let matches = match getopts(os::args().tail(), opts) {
+    let matches = match getopts(os::args().tail(), &opts) {
         Ok(m) => m,
         Err(e) => {
             print!("{}\n\n", e.to_string());
-            print_opts(prog.as_slice(), opts);
+            print_opts(prog.as_slice(), &opts);
             return None
         }
     };
     if matches.opt_present("h") {
-        print_opts(prog.as_slice(), opts);
+        print_opts(prog.as_slice(), &opts);
         return None
     }
 
