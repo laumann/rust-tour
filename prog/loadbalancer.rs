@@ -1,8 +1,9 @@
-#![feature(macro_rules)]
+#![feature(macro_rules,default_type_params)]
 
 extern crate getopts;
 use getopts::{optopt,optflag,getopts,usage,OptGroup};
 use std::os;
+use std::thunk::Invoke;
 
 use std::rand;
 use std::rand::distributions::{IndependentSample,Range};
@@ -14,7 +15,7 @@ static DEFAULT_REQUESTERS: uint = 10;
 static DEFAULT_WORKERS: uint = 10;
 
 struct Request {
-    work: proc():Send -> uint // The worker function to execute
+    work: Box<Invoke<(), uint> + Send + 'static> // The worker function to execute
 }
 
 fn requester(q: Sender<Request>) {
@@ -24,8 +25,7 @@ fn requester(q: Sender<Request>) {
         let dur = range.ind_sample(&mut rng);
         sleep(Duration::milliseconds(dur as i64));
 
-	let f = proc() { dur };
-        q.send(Request{work: f });
+        q.send(Request{work: box move|: ()| dur});
     }
 }
 
@@ -58,7 +58,7 @@ fn dispatch(q: Receiver<Request>, mut workers: Vec<Worker>, done: Receiver<uint>
 }
 
 /// A round-robin dispatcher
-/// 
+///
 /// Relies on the fact that the returned 'id' is also the position of the worker
 /// in the worker list.
 fn dispatch_rr(q: Receiver<Request>, mut workers: Vec<Worker>, done: Receiver<uint>) {
@@ -83,7 +83,7 @@ fn dispatch_rr(q: Receiver<Request>, mut workers: Vec<Worker>, done: Receiver<ui
 
 fn print(workers: &Vec<Worker>) {
     let (mut sum, mut sumsq) = (0, 0);
-    
+
     for w in workers.iter() {
         sum += w.pending;
         sumsq += w.pending * w.pending;
@@ -98,6 +98,16 @@ struct Worker {
     id:       uint,
     pending:  uint,
     requests: Sender<Request> // work sending channel
+}
+
+impl Worker {
+    fn new(id: uint, rq: Sender<Request>) -> Worker {
+        Worker{
+            id: id,
+            pending: 0,
+            requests: rq
+        }
+    }
 }
 
 impl Eq for Worker {}
@@ -126,11 +136,11 @@ impl PartialOrd for Worker {
 fn worker(id: uint, requests: Receiver<Request>, done: Sender<uint>) {
     loop {
         let req = requests.recv();
-        
+
         // Simulated work
-        let s = (req.work)();
+        let s = req.work.invoke(());
         sleep(Duration::milliseconds((s << 1) as i64));
-        
+
         done.send(id);
     }
 }
@@ -147,8 +157,8 @@ fn main() {
     let (tx, rx) = channel();
 
     for _ in range(0, nrequesters) {
-        let qc = tx.clone();
-        spawn(proc() requester(qc));
+        let tx_clone = tx.clone();
+        spawn(move|| requester(tx_clone));
     }
 
     let mut workers = Vec::with_capacity(nworkers);
@@ -158,14 +168,13 @@ fn main() {
         let (wtx, wrx) = channel();
         let txd = tx_done.clone();
 
-        let w = Worker{id: id, pending: 0, requests: wtx};
-        workers.push(w);
+        workers.push(Worker::new(id, wtx));
 
-        spawn(proc() worker(id, wrx, txd));
+        spawn(move|| worker(id, wrx, txd));
     }
 
     // start the dispatcher
-    spawn(proc() if rr {
+    spawn(move|| if rr {
         println!("Using round-robin dispatcher");
         dispatch_rr(rx, workers, rx_done)
     } else {

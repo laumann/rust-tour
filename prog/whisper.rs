@@ -30,12 +30,11 @@ static NPROC_DEFAULT: uint = 25_000;
  * Short-hand macro for spawn(proc() ...)
  */
 macro_rules! go(
-    ($e:expr) => (spawn(proc() $e))
+    ($e:expr) => (spawn(move|| $e))
 )
 
 fn whisper(rx: Receiver<uint>, tx: Sender<uint>) {
-    let n = rx.recv();
-    tx.send(n + 1);
+    tx.send(rx.recv()+1);
 }
 
 fn main() {
@@ -61,12 +60,12 @@ fn main() {
 
 
 
-/* 
+/*
  * Handle command-line arguments
- * 
+ *
  * Return the number of processes to start and whether or not parsing was
  * successful.
- * 
+ *
  * The tuple returned is inspired by Go's multiple return values (this in
  * essence just models that). I suppose in idiomatic Rust, one should return
  * an Option<uint> indicating whether or not a number could be found.
