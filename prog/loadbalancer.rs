@@ -200,7 +200,7 @@ macro_rules! getopt_uint(
             $def
         }
     )
-)
+);
 
 fn handle_args() -> Option<(uint, uint, bool)> {
     let args = os::args();
@@ -213,7 +213,7 @@ fn handle_args() -> Option<(uint, uint, bool)> {
     ];
 
     let matches = match getopts(os::args().tail(), &opts) {
-        Ok(m) => m,
+        Ok(m)  => m,
         Err(e) => {
             print!("{}\n\n", e.to_string());
             print_opts(prog.as_slice(), &opts);
