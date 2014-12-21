@@ -31,7 +31,7 @@ static NPROC_DEFAULT: uint = 25_000;
  */
 macro_rules! go(
     ($e:expr) => (spawn(move|| $e))
-)
+);
 
 fn whisper(rx: Receiver<uint>, tx: Sender<uint>) {
     tx.send(rx.recv()+1);
