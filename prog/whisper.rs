@@ -1,4 +1,3 @@
-#![feature(macro_rules)]
 /*
  * Chinese whispers in Rust
  *
@@ -23,6 +22,8 @@ extern crate getopts;
 
 use getopts::{optopt,optflag,getopts,usage};
 use std::os;
+use std::sync::mpsc::{Receiver,Sender,channel};
+use std::thread::Thread;
 
 static NPROC_DEFAULT: uint = 25_000;
 
@@ -30,11 +31,11 @@ static NPROC_DEFAULT: uint = 25_000;
  * Short-hand macro for spawn(proc() ...)
  */
 macro_rules! go(
-    ($e:expr) => (spawn(move|| $e))
-)
+    ($e:expr) => (Thread::spawn(move|| $e))
+);
 
 fn whisper(rx: Receiver<uint>, tx: Sender<uint>) {
-    tx.send(rx.recv()+1);
+    tx.send(rx.recv().unwrap()+1).unwrap();
 }
 
 fn main() {
@@ -53,8 +54,8 @@ fn main() {
         rx = rx_next;
     }
 
-    tx.send(0);
-    let n = rx.recv();
+    tx.send(0).unwrap();
+    let n = rx.recv().unwrap();
     println!("Received {}", n);
 }
 
