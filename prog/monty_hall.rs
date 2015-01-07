@@ -69,7 +69,7 @@ fn main() {
 
 
     // Now for the simulation
-    let mut rng = rand::task_rng();
+    let mut rng = rand::thread_rng();
     let random_door = Range::new(0u,3);
 
     let (mut switch_wins, mut switch_losses) = (0u, 0u);
@@ -93,7 +93,7 @@ fn main() {
 
     println!("Switched door {} times with {} wins and {} losses", total_switches, switch_wins, switch_losses);
     println!("Kept door {} times with {} wins and {} losses", total_keeps, keep_wins, keep_losses);
-    
+
     println!("Estimated chance to win if we switch: {}", switch_wins as f32 / total_switches as f32);
     println!("Estimated chance to win if we keep:   {}", keep_wins as f32 / total_keeps as f32);
 }
