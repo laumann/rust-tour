@@ -16,7 +16,7 @@ fn main() {
 
         let join_guard = Thread::scoped(move|| {
             let i = rx.recv().unwrap();
-            println!("{}", rx.recv().unwrap());
+            println!("{}", i);
         });
         threads.push(join_guard);
     }
