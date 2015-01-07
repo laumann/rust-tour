@@ -1,4 +1,4 @@
-#![feature(macro_rules,default_type_params)]
+#![deny(unused_imports)]
 
 extern crate getopts;
 use getopts::{optopt,optflag,getopts,usage,OptGroup};
@@ -8,8 +8,11 @@ use std::thunk::Invoke;
 use std::rand;
 use std::rand::distributions::{IndependentSample,Range};
 use std::io::timer::sleep;
+use std::cmp::Ordering;
 
 use std::time::Duration;
+use std::sync::mpsc::{Sender,Receiver,channel};
+use std::thread::Thread;
 
 static DEFAULT_REQUESTERS: uint = 10;
 static DEFAULT_WORKERS: uint = 10;
@@ -20,12 +23,12 @@ struct Request {
 
 fn requester(q: Sender<Request>) {
     let range = Range::new(0u, 5000);
-    let mut rng = rand::task_rng();
+    let mut rng = rand::thread_rng();
     loop {
         let dur = range.ind_sample(&mut rng);
         sleep(Duration::milliseconds(dur as i64));
 
-        q.send(Request{work: box move|: ()| dur});
+        q.send(Request{work: box move|: ()| dur}).unwrap();
     }
 }
 
@@ -40,10 +43,11 @@ fn dispatch(q: Receiver<Request>, mut workers: Vec<Worker>, done: Receiver<uint>
         select! {
             req = q.recv() => {
                 let w = workers.get_mut(0).unwrap();
-                w.requests.send(req);
+                w.requests.send(req.unwrap()).unwrap();
                 w.pending += 1;
             },
             id = done.recv() => {
+                let id = id.unwrap();
                 for w in workers.iter_mut() {
                     if w.id == id {
                         w.pending -= 1;
@@ -68,12 +72,12 @@ fn dispatch_rr(q: Receiver<Request>, mut workers: Vec<Worker>, done: Receiver<ui
         select! {
             req = q.recv() => {
                 let w = workers.get_mut(i).unwrap();
-                w.requests.send(req);
+                w.requests.send(req.unwrap()).unwrap();
                 w.pending += 1;
                 i = (i + 1) % nw;
             },
             id = done.recv() => {
-                let w = workers.get_mut(id).unwrap();
+                let w = workers.get_mut(id.unwrap()).unwrap();
                 w.pending -= 1;
             }
         }
@@ -138,10 +142,10 @@ fn worker(id: uint, requests: Receiver<Request>, done: Sender<uint>) {
         let req = requests.recv();
 
         // Simulated work
-        let s = req.work.invoke(());
+        let s = req.unwrap().work.invoke(());
         sleep(Duration::milliseconds((s << 1) as i64));
 
-        done.send(id);
+        done.send(id).unwrap();
     }
 }
 
@@ -158,7 +162,7 @@ fn main() {
 
     for _ in range(0, nrequesters) {
         let tx_clone = tx.clone();
-        spawn(move|| requester(tx_clone));
+        Thread::spawn(move|| requester(tx_clone));
     }
 
     let mut workers = Vec::with_capacity(nworkers);
@@ -170,16 +174,16 @@ fn main() {
 
         workers.push(Worker::new(id, wtx));
 
-        spawn(move|| worker(id, wrx, txd));
+        Thread::spawn(move|| worker(id, wrx, txd));
     }
 
-    // start the dispatcher
-    spawn(move|| if rr {
+    // // start the dispatcher
+    if rr {
         println!("Using round-robin dispatcher");
         dispatch_rr(rx, workers, rx_done)
     } else {
         dispatch(rx, workers, rx_done)
-    });
+    }
 }
 
 /*
@@ -188,7 +192,8 @@ fn main() {
 macro_rules! getopt_uint(
     ($prog:ident, $o:ident, $m:ident, $arg:expr, $def:ident) => (
         if $m.opt_present($arg) {
-            match from_str::<uint>($m.opt_str($arg).unwrap().as_slice()) {
+            match $m.opt_str($arg).unwrap().parse::<uint>() {
+                // match from_str::<uint>($m.opt_str($arg).unwrap()as_slice()) {
                 None => {
                     println!("error: argument for '-{}' must be positive numeric.", $arg);
                     print_opts($prog.as_slice(), &$o);
@@ -200,7 +205,7 @@ macro_rules! getopt_uint(
             $def
         }
     )
-)
+);
 
 fn handle_args() -> Option<(uint, uint, bool)> {
     let args = os::args();
