@@ -1,5 +1,5 @@
 #![deny(unused_imports)]
-#![feature(int_uint)]
+#![feature(int_uint,box_syntax)]
 
 extern crate getopts;
 
@@ -48,9 +48,7 @@ fn requester(q: Sender<Request>) {
         let dur = range.ind_sample(&mut rng);
         sleep(Duration::milliseconds(dur as i64));
 
-        q.send(Request{
-            work: Box::new(move|:| dur) as Box<WorkFn + Send + 'static>
-        }).unwrap();
+        q.send(Request{work: box move|:| dur}).unwrap();
     }
 }
 
