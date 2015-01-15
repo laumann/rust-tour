@@ -1,10 +1,10 @@
 #![deny(unused_imports)]
+#![feature(int_uint)]
 
 extern crate getopts;
 
 use getopts::{optopt,optflag,getopts,usage,OptGroup};
 use std::os;
-use std::thunk::Invoke;
 
 use std::rand;
 use std::rand::distributions::{IndependentSample,Range};
@@ -19,8 +19,26 @@ use std::iter::Iterator;
 static DEFAULT_REQUESTERS: uint = 10;
 static DEFAULT_WORKERS: uint = 10;
 
+
+trait WorkFn {
+    fn invoke(self: Box<Self>) -> uint;
+}
+
+impl<F> WorkFn for F where F: FnOnce() -> uint {
+    fn invoke(self: Box<F>) -> uint {
+        let f = *self;
+        f()
+    }
+}
+
 struct Request {
-    work: Box<Invoke<(), uint> + Send + 'static> // The worker function to execute
+    work: Box<WorkFn + Send + 'static>
+}
+
+impl Request {
+    fn do_work(self) -> uint {
+        self.work.invoke()
+    }
 }
 
 fn requester(q: Sender<Request>) {
@@ -30,7 +48,9 @@ fn requester(q: Sender<Request>) {
         let dur = range.ind_sample(&mut rng);
         sleep(Duration::milliseconds(dur as i64));
 
-        q.send(Request{work: box move|: ()| dur}).unwrap();
+        q.send(Request{
+            work: Box::new(move|:| dur) as Box<WorkFn + Send + 'static>
+        }).unwrap();
     }
 }
 
@@ -151,7 +171,7 @@ fn worker(id: uint, requests: Receiver<Request>, done: Sender<uint>) {
         let req = requests.recv();
 
         // Simulated work
-        let s = req.unwrap().work.invoke(());
+        let s = req.unwrap().do_work();
         sleep(Duration::milliseconds((s << 1) as i64));
 
         done.send(id).unwrap();
@@ -204,7 +224,7 @@ macro_rules! getopt_uint(
             match $m.opt_str($arg).unwrap().parse::<uint>() {
                 None => {
                     println!("error: argument for '-{}' must be positive numeric.", $arg);
-                    print_opts($prog.as_slice(), &$o);
+                    print_opts(&$prog[], &$o);
                     return None
                 },
                 Some(u) => u
@@ -229,12 +249,12 @@ fn handle_args() -> Option<(uint, uint, bool)> {
         Ok(m)  => m,
         Err(e) => {
             print!("{}\n\n", e.to_string());
-            print_opts(prog.as_slice(), &opts);
+            print_opts(&prog[], &opts);
             return None
         }
     };
     if matches.opt_present("h") {
-        print_opts(prog.as_slice(), &opts);
+        print_opts(&prog[], &opts);
         return None
     }
 
