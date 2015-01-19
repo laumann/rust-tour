@@ -1,10 +1,5 @@
 extern crate hyper;
 
-use std::os;
-
-// use hyper::Url;
-// use hyper::client::Request;
-// use hyper::method::Method;
 use std::io::net::ip::Ipv4Addr;
 use hyper::server::{Server,Request,Response,Fresh};
 use hyper::status::StatusCode;
