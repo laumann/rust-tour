@@ -18,7 +18,7 @@ struct SimulationResult {
     switched: bool
 }
 
-fn simulate<R: Rng>(random_door: &Range<uint>, rng: &mut R) -> SimulationResult {
+fn simulate<R: Rng>(random_door: &Range<usize>, rng: &mut R) -> SimulationResult {
     let car = random_door.ind_sample(rng);
     let mut choice = random_door.ind_sample(rng);
 
@@ -31,23 +31,23 @@ fn simulate<R: Rng>(random_door: &Range<uint>, rng: &mut R) -> SimulationResult 
     SimulationResult{win: choice == car, switched: switch}
 }
 
-fn game_host_open<R: Rng>(car: uint, choice: uint, rng: &mut R) -> uint {
+fn game_host_open<R: Rng>(car: usize, choice: usize, rng: &mut R) -> usize {
     let choices = free_doors(&[car, choice]);
     rand::sample(rng, choices.into_iter(), 1)[0]
 }
 
-fn switch_door(choice: uint, open: uint) -> uint {
+fn switch_door(choice: usize, open: usize) -> usize {
     free_doors(&[choice, open])[0]
 }
 
-fn free_doors(blocked: &[uint]) -> Vec<uint> {
-    range(0u, 3).filter(|x| !blocked.contains(x)).collect()
+fn free_doors(blocked: &[usize]) -> Vec<usize> {
+    range(0us, 3).filter(|x| !blocked.contains(x)).collect()
 }
 
 fn main() {
     // Option parsing
     let opts = [
-        optopt("n", "num-simulations", "Set the number of iterations to run", "<uint>"),
+        optopt("n", "num-simulations", "Set the number of iterations to run", "<usize>"),
     ];
 
     let matches = match getopts(os::args().tail(), &opts) {
@@ -57,7 +57,7 @@ fn main() {
 
     let num_simulations = if matches.opt_present("n") {
         let n = matches.opt_str("n").unwrap();
-        match std::num::from_str_radix(n.as_slice(), 10) {
+        match std::num::from_str_radix(&n[], 10) {
             Some(n) => n,
             None    => {
                 println!("error: Argument to -n: '{}'. Must be an unsigned integer", n);
@@ -65,19 +65,19 @@ fn main() {
                 return;
             }
         }
-    } else { 1000u };
+    } else { 1000us };
 
 
     // Now for the simulation
     let mut rng = rand::thread_rng();
-    let random_door = Range::new(0u,3);
+    let random_door = Range::new(0us, 3);
 
-    let (mut switch_wins, mut switch_losses) = (0u, 0u);
-    let (mut keep_wins, mut keep_losses) = (0u, 0u);
+    let (mut switch_wins, mut switch_losses) = (0us, 0us);
+    let (mut keep_wins, mut keep_losses) = (0us, 0us);
 
     println!("Running {} simulations...", num_simulations);
 
-    for _ in range(0u, num_simulations) {
+    for _ in 0us .. num_simulations {
         let result = simulate(&random_door, &mut rng);
 
         match (result.win, result.switched) {
