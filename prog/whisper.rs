@@ -20,29 +20,29 @@
 
 extern crate getopts;
 
-use getopts::{optopt,optflag,getopts,usage};
+use getopts::{optopt, optflag, getopts, usage};
 use std::os;
-use std::sync::mpsc::{Receiver,Sender,channel};
-use std::thread::Thread;
+use std::sync::mpsc::{Receiver, Sender, channel};
+use std::thread::spawn;
 
-static NPROC_DEFAULT: uint = 25_000;
+static NPROC_DEFAULT: usize = 25_000;
 
 /*
  * Short-hand macro for spawn(proc() ...)
  */
 macro_rules! go(
-    ($e:expr) => (Thread::spawn(move|| $e))
+    ($e:expr) => (spawn(move|| $e))
 );
 
-fn whisper(rx: Receiver<uint>, tx: Sender<uint>) {
+fn whisper(rx: Receiver<usize>, tx: Sender<usize>) {
     tx.send(rx.recv().unwrap()+1).unwrap();
 }
 
 fn main() {
-    let (nproc, ok) = handle_args();
-    if !ok {
-        return;
-    }
+    let nproc = match handle_args() {
+        None => return,
+        Some(n) => n
+    };
 
     println!("Spawning {} processes.", nproc);
 
@@ -69,17 +69,17 @@ fn main() {
  *
  * The tuple returned is inspired by Go's multiple return values (this in
  * essence just models that). I suppose in idiomatic Rust, one should return
- * an Option<uint> indicating whether or not a number could be found.
+ * an Option<usize> indicating whether or not a number could be found.
  *
  * This code was split into its own function, because it started to dominate
  * the code that is actually interesting here. This code should just provide
  * the option to specify the number of processes to start.
  */
-fn handle_args() -> (uint, bool) {
+fn handle_args() -> Option<usize> {
     let args = os::args();
     let prog = args[0].clone();
     let opts = [
-        optopt("n", "", "Length of the whisper chain", "<uint>"),
+        optopt("n", "", "Length of the whisper chain", "<usize>"),
         optflag("h", "help", "Print this help message")
     ];
 
@@ -88,25 +88,25 @@ fn handle_args() -> (uint, bool) {
         Err(e) => {
             print!("{}", e.to_string());
             print!("{} [options]{}", prog, usage("", &opts));
-            return (0, false);
+            return None
         }
     };
 
     if matches.opt_present("h") {
         print!("{} [options]{}", prog, usage("", &opts));
-        return (0, false);
+        return None
     }
 
     if matches.opt_present("n") {
         match std::num::from_str_radix(matches.opt_str("n").unwrap().as_slice(), 10) {
-            Some(n) => (n, true),
-            None    => {
+            Ok(n)  => Some(n),
+            Err(_) => {
                 println!("error: argument for -n must be positive numeric.");
                 print!("{} [options]{}", prog, usage("", &opts));
-                (0, false)
+                return None
             }
         }
     } else {
-        (NPROC_DEFAULT, true)
+        Some(NPROC_DEFAULT)
     }
 }

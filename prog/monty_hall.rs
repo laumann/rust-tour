@@ -58,8 +58,8 @@ fn main() {
     let num_simulations = if matches.opt_present("n") {
         let n = matches.opt_str("n").unwrap();
         match std::num::from_str_radix(&n[], 10) {
-            Some(n) => n,
-            None    => {
+            Ok(n)  => n,
+            Err(_) => {
                 println!("error: Argument to -n: '{}'. Must be an unsigned integer", n);
                 println!("{}", usage("\nusage: ./monty_hall [options]", &opts));
                 return;

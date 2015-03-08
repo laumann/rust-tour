@@ -4,16 +4,16 @@
 extern crate getopts;
 
 use getopts::{optopt,optflag,getopts,usage,OptGroup};
-use std::os;
+use std::env;
 
 use std::rand;
 use std::rand::distributions::{IndependentSample,Range};
-use std::io::timer::sleep;
+use std::old_io::timer::sleep;
 use std::cmp::Ordering;
 
 use std::time::Duration;
 use std::sync::mpsc::{Sender,Receiver,channel};
-use std::thread::Thread;
+use std::thread::spawn;
 use std::iter::Iterator;
 
 static DEFAULT_REQUESTERS: uint = 10;
@@ -48,7 +48,7 @@ fn requester(q: Sender<Request>) {
         let dur = range.ind_sample(&mut rng);
         sleep(Duration::milliseconds(dur as i64));
 
-        q.send(Request{work: box move|:| dur}).unwrap();
+        q.send(Request{work: box move|| dur}).unwrap();
     }
 }
 
@@ -189,7 +189,7 @@ fn main() {
 
     for _ in range(0, nrequesters) {
         let tx_clone = tx.clone();
-        Thread::spawn(move|| requester(tx_clone));
+        spawn(move|| requester(tx_clone));
     }
 
     let mut workers = Vec::with_capacity(nworkers);
@@ -201,7 +201,7 @@ fn main() {
 
         workers.push(Worker::new(id, wtx));
 
-        Thread::spawn(move|| worker(id, wrx, txd));
+        spawn(move|| worker(id, wrx, txd));
     }
 
     // start the dispatcher
@@ -220,12 +220,12 @@ macro_rules! getopt_uint(
     ($prog:ident, $o:ident, $m:ident, $arg:expr, $def:ident) => (
         if $m.opt_present($arg) {
             match $m.opt_str($arg).unwrap().parse::<uint>() {
-                None => {
+                Err(_) => {
                     println!("error: argument for '-{}' must be positive numeric.", $arg);
-                    print_opts(&$prog[], &$o);
+                    print_opts(&$prog[..], &$o);
                     return None
                 },
-                Some(u) => u
+                Ok(u) => u
             }
         } else {
             $def
@@ -234,7 +234,7 @@ macro_rules! getopt_uint(
 );
 
 fn handle_args() -> Option<(uint, uint, bool)> {
-    let args = os::args();
+    let args = env::args().collect::<Vec<String>>();
     let prog = args[0].clone();
     let opts = [
         optopt("s", "requesters", "Number of requesters to spawn.", "<uint>"),
@@ -243,16 +243,16 @@ fn handle_args() -> Option<(uint, uint, bool)> {
         optflag("h", "help", "Print this help message and exit.")
     ];
 
-    let matches = match getopts(os::args().tail(), &opts) {
+    let matches = match getopts(args.tail(), &opts) {
         Ok(m)  => m,
         Err(e) => {
             print!("{}\n\n", e.to_string());
-            print_opts(&prog[], &opts);
+            print_opts(&prog[..], &opts);
             return None
         }
     };
     if matches.opt_present("h") {
-        print_opts(&prog[], &opts);
+        print_opts(&prog[..], &opts);
         return None
     }
 
